@@ -1,0 +1,176 @@
+/* IILM Smart Room Finder - University Theme Styles */
+
+:root {
+  --iilm-navy: #0f2b48;
+  --iilm-navy-dark: #091a2c;
+  --iilm-blue: #1d4ed8;
+  --iilm-gold: #f59e0b;
+  --iilm-gold-hover: #d97706;
+  --iilm-sky: #0284c7;
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --border-subtle: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --status-vacant-bg: #ecfdf5;
+  --status-vacant-text: #065f46;
+  --status-vacant-border: #10b981;
+  --status-occupied-bg: #fef2f2;
+  --status-occupied-text: #991b1b;
+  --status-occupied-border: #ef4444;
+  --status-shared-bg: #f5f3ff;
+  --status-shared-text: #5b21b6;
+  --status-shared-border: #8b5cf6;
+  --status-unknown-bg: #f1f5f9;
+  --status-unknown-text: #334155;
+  --status-unknown-border: #94a3b8;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.live-pulse {
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+/* Room Status Badges & Borders */
+.room-card {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid var(--border-subtle);
+}
+
+.room-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(15, 43, 72, 0.08), 0 4px 6px -4px rgba(15, 43, 72, 0.04);
+}
+
+.room-card.is-occupied {
+  border-left: 4px solid var(--status-occupied-border);
+  background: linear-gradient(to right, #fff5f5, #ffffff 40%);
+}
+
+.room-card.is-vacant {
+  border-left: 4px solid var(--status-vacant-border);
+  background: linear-gradient(to right, #f0fdf4, #ffffff 40%);
+}
+
+.room-card.is-shared {
+  border-left: 4px solid var(--status-shared-border);
+  background: linear-gradient(to right, #faf5ff, #ffffff 40%);
+}
+
+.room-card.is-unknown {
+  border-left: 4px solid var(--status-unknown-border);
+  background: linear-gradient(to right, #f8fafc, #ffffff 40%);
+}
+
+/* Status Chips */
+.badge-vacant {
+  background-color: var(--status-vacant-bg);
+  color: var(--status-vacant-text);
+  border: 1px solid #a7f3d0;
+}
+
+.badge-occupied {
+  background-color: var(--status-occupied-bg);
+  color: var(--status-occupied-text);
+  border: 1px solid #fecaca;
+}
+
+.badge-shared {
+  background-color: var(--status-shared-bg);
+  color: var(--status-shared-text);
+  border: 1px solid #ddd6fe;
+}
+
+.badge-unknown {
+  background-color: var(--status-unknown-bg);
+  color: var(--status-unknown-text);
+  border: 1px solid #cbd5e1;
+}
+
+/* Navigation active tab */
+.nav-tab.active {
+  background-color: #ffffff;
+  color: var(--iilm-navy);
+  font-weight: 700;
+  box-shadow: 0 2px 8px -1px rgba(0,0,0,0.12);
+  border-bottom: 2px solid var(--iilm-gold);
+}
+
+/* Timetable Grid */
+.tt-grid-cell {
+  min-height: 85px;
+  transition: background-color 0.15s ease;
+}
+
+.tt-grid-cell:hover {
+  background-color: #f1f5f9;
+}
+
+.tt-day-header {
+  position: sticky;
+  left: 0;
+  z-index: 10;
+}
+
+/* Touch Friendly Mobile */
+@media (max-width: 640px) {
+  .mobile-touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Print Friendly */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #ffffff !important;
+  }
+  .room-card, .table-container {
+    box-shadow: none !important;
+    border: 1px solid #000 !important;
+  }
+}

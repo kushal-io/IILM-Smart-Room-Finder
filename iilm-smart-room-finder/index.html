@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IILM Smart Room Finder — University Timetable & Room Occupancy</title>
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            iilm: {
+              navy: '#0f2b48',
+              dark: '#081726',
+              blue: '#1d4ed8',
+              gold: '#f59e0b',
+              accent: '#0284c7'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col font-sans antialiased selection:bg-amber-100 selection:text-blue-900">
+
+  <!-- Top Announcement / Disclaimer Banner -->
+  <div class="bg-slate-900 text-slate-300 text-xs py-1.5 px-4 border-b border-slate-800 flex justify-between items-center flex-wrap gap-2">
+    <div class="flex items-center gap-2">
+      <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">Official SCSE Timetable</span>
+      <span>IILM University Greater Noida • Odd Semester 2026–2027 • 127 Class Sections Processed</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-slate-400">Scheduled Occupancy System</span>
+      <span class="inline-block w-1 h-1 rounded-full bg-slate-600"></span>
+      <span id="dataLoadedBadge" class="text-emerald-400 font-medium">● Data Loaded</span>
+    </div>
+  </div>
+
+  <!-- Primary Header & Navbar -->
+  <header class="bg-gradient-to-r from-[#0f2b48] via-[#12365c] to-[#0a1e33] text-white shadow-lg sticky top-0 z-40 border-b border-slate-700">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20 gap-4">
+        
+        <!-- University Branding -->
+        <div class="flex items-center gap-3 cursor-pointer" onclick="switchTab('dashboard')">
+          <div class="bg-white p-1 rounded-lg shadow-md border border-amber-400/40 flex-shrink-0">
+            <img src="assets/logo.svg" alt="IILM University Logo" class="h-10 w-auto">
+          </div>
+          <div class="leading-tight">
+            <div class="flex items-center gap-2">
+              <span class="text-lg font-black tracking-wide text-white">IILM SMART ROOM FINDER</span>
+              <span class="hidden md:inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-amber-400 text-slate-950 uppercase tracking-wider">SCSE</span>
+            </div>
+            <p class="text-xs text-blue-200 hidden sm:block">Room Occupancy, Timetables, Floor Explorer &amp; Section Locator</p>
+          </div>
+        </div>
+
+        <!-- Global Quick Search Bar -->
+        <div class="relative flex-1 max-w-md hidden md:block">
+          <div class="relative">
+            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+            </span>
+            <input type="text" id="globalSearchInput" 
+              placeholder="Search room (EB 301), section (2CSE10), faculty, subject..." 
+              class="w-full bg-slate-800/80 hover:bg-slate-800 text-sm text-white placeholder-slate-400 pl-9 pr-10 py-2 rounded-lg border border-slate-600 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition"
+              oninput="handleGlobalSearch(this.value)">
+            <kbd class="absolute right-2.5 top-2 text-[10px] font-mono bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded border border-slate-600">Ctrl+K</kbd>
+          </div>
+          <!-- Global Search Dropdown Results -->
+          <div id="globalSearchResults" class="absolute left-0 right-0 mt-2 bg-white text-slate-900 rounded-xl shadow-2xl border border-slate-200 overflow-hidden hidden z-50 max-h-96 overflow-y-auto"></div>
+        </div>
+
+        <!-- Live Clock & Mode Switcher -->
+        <div class="flex items-center gap-3">
+          <div class="bg-slate-800/90 border border-slate-700 px-3 py-1.5 rounded-lg text-right hidden sm:block">
+            <div class="flex items-center justify-end gap-1.5 text-xs font-semibold text-emerald-400">
+              <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 live-pulse"></span>
+              <span id="liveClockText">Loading time...</span>
+            </div>
+            <div id="currentPeriodBadge" class="text-[11px] text-slate-300 font-medium">Checking Period...</div>
+          </div>
+
+          <!-- Mobile Menu Hamburger -->
+          <button id="mobileMenuBtn" class="md:hidden p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white" onclick="toggleMobileMenu()">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Navigation Tabs (Desktop & Tablet) -->
+      <nav class="hidden md:flex space-x-1 py-1.5 overflow-x-auto text-sm border-t border-slate-700/60" id="mainNavBar">
+        <button onclick="switchTab('dashboard')" id="tab-dashboard" class="nav-tab active px-3.5 py-2 rounded-t-md font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition flex items-center gap-1.5">
+          <span>📊</span> Dashboard ("What's Happening Now?")
+        </button>
+        <button onclick="switchTab('multiroom')" id="tab-multiroom" class="nav-tab px-3.5 py-2 rounded-t-md font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition flex items-center gap-1.5">
+          <span>🏢</span> Multi-Room Search
+        </button>
+        <button onclick="switchTab('floors')" id="tab-floors" class="nav-tab px-3.5 py-2 rounded-t-md font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition flex items-center gap-1.5">
+          <span>🗺️</span> Floor Explorer
+        </button>
+        <button onclick="switchTab('vacant')" id="tab-vacant" class="nav-tab px-3.5 py-2 rounded-t-md font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition flex items-center gap-1.5">
+          <span>🟢</span> Vacant Rooms
+        </button>
+        <button onclick="switchTab('sections')" id="tab-sections" class="nav-tab px-3.5 py-2 rounded-t-md font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition flex items-center gap-1.5">
+          <span>🔍</span> Section Lookup
+        </button>
+        <button onclick="switchTab('timetable')" id="tab-timetable" class="nav-tab px-3.5 py-2 rounded-t-md font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition flex items-center gap-1.5">
+          <span>📅</span> Master Timetable
+        </button>
+        <button onclick="switchTab('about')" id="tab-about" class="nav-tab px-3.5 py-2 rounded-t-md font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition flex items-center gap-1.5">
+          <span>ℹ️</span> About &amp; Data Report
+        </button>
+      </nav>
+    </div>
+
+    <!-- Mobile Drawer Navigation Menu -->
+    <div id="mobileDrawer" class="hidden md:hidden bg-slate-900 border-t border-slate-700 px-4 pt-2 pb-4 space-y-2">
+      <!-- Mobile Global Search -->
+      <div class="relative pt-2 pb-1">
+        <input type="text" id="mobileGlobalSearchInput" 
+          placeholder="Search room, section, faculty..." 
+          class="w-full bg-slate-800 text-sm text-white placeholder-slate-400 px-3 py-2 rounded-lg border border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          oninput="handleGlobalSearch(this.value)">
+      </div>
+      <button onclick="switchTab('dashboard'); toggleMobileMenu();" class="w-full text-left px-3 py-2.5 rounded-lg text-slate-200 hover:bg-slate-800 font-medium flex items-center gap-2">
+        <span>📊</span> Dashboard ("What's Happening Now?")
+      </button>
+      <button onclick="switchTab('multiroom'); toggleMobileMenu();" class="w-full text-left px-3 py-2.5 rounded-lg text-slate-200 hover:bg-slate-800 font-medium flex items-center gap-2">
+        <span>🏢</span> Multi-Room Search
+      </button>
+      <button onclick="switchTab('floors'); toggleMobileMenu();" class="w-full text-left px-3 py-2.5 rounded-lg text-slate-200 hover:bg-slate-800 font-medium flex items-center gap-2">
+        <span>🗺️</span> Floor Explorer
+      </button>
+      <button onclick="switchTab('vacant'); toggleMobileMenu();" class="w-full text-left px-3 py-2.5 rounded-lg text-slate-200 hover:bg-slate-800 font-medium flex items-center gap-2">
+        <span>🟢</span> Vacant Rooms
+      </button>
+      <button onclick="switchTab('sections'); toggleMobileMenu();" class="w-full text-left px-3 py-2.5 rounded-lg text-slate-200 hover:bg-slate-800 font-medium flex items-center gap-2">
+        <span>🔍</span> Section Lookup
+      </button>
+      <button onclick="switchTab('timetable'); toggleMobileMenu();" class="w-full text-left px-3 py-2.5 rounded-lg text-slate-200 hover:bg-slate-800 font-medium flex items-center gap-2">
+        <span>📅</span> Master Timetable
+      </button>
+      <button onclick="switchTab('about'); toggleMobileMenu();" class="w-full text-left px-3 py-2.5 rounded-lg text-slate-200 hover:bg-slate-800 font-medium flex items-center gap-2">
+        <span>ℹ️</span> About &amp; Data Report
+      </button>
+    </div>
+  </header>
+
+  <!-- Global Shared Control Bar (Day & Time Context Picker) -->
+  <section class="bg-white border-b border-slate-200 shadow-sm py-3 px-4 sm:px-6 lg:px-8 sticky top-20 z-30">
+    <div class="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-4">
+      
+      <!-- Time Mode Indicator -->
+      <div class="flex items-center gap-2">
+        <label class="text-xs font-bold uppercase tracking-wider text-slate-500">Mode:</label>
+        <div class="inline-flex p-0.5 bg-slate-100 rounded-lg border border-slate-200 text-xs">
+          <button id="modeLiveBtn" onclick="setLiveMode(true)" class="px-2.5 py-1 rounded-md font-semibold bg-white text-blue-900 shadow-sm transition">
+            🟢 Live Now
+          </button>
+          <button id="modeManualBtn" onclick="setLiveMode(false)" class="px-2.5 py-1 rounded-md font-semibold text-slate-600 hover:text-slate-900 transition">
+            ⚙️ Custom Pick
+          </button>
+        </div>
+      </div>
+
+      <!-- Day & Period Selectors -->
+      <div class="flex items-center gap-3 flex-wrap flex-1 justify-end">
+        
+        <!-- Day Selector -->
+        <div class="flex items-center gap-1.5">
+          <label for="sharedDaySelect" class="text-xs font-semibold text-slate-600">Day:</label>
+          <select id="sharedDaySelect" onchange="onSharedTimeChange()" class="bg-slate-50 border border-slate-300 text-slate-800 text-sm font-semibold rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-blue-600 focus:border-blue-600">
+            <option value="Monday">Monday</option>
+            <option value="Tuesday">Tuesday</option>
+            <option value="Wednesday" selected>Wednesday</option>
+            <option value="Thursday">Thursday</option>
+            <option value="Friday">Friday</option>
+            <option value="Saturday">Saturday</option>
+          </select>
+        </div>
+
+        <!-- Period Selector -->
+        <div class="flex items-center gap-1.5">
+          <label for="sharedPeriodSelect" class="text-xs font-semibold text-slate-600">Period / Time:</label>
+          <select id="sharedPeriodSelect" onchange="onSharedTimeChange()" class="bg-slate-50 border border-slate-300 text-slate-800 text-sm font-semibold rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-blue-600 focus:border-blue-600">
+            <option value="1">Period 1 (09:00 - 09:55)</option>
+            <option value="2">Period 2 (09:55 - 10:50)</option>
+            <option value="3">Period 3 (10:50 - 11:45)</option>
+            <option value="4">Period 4 (11:45 - 12:40)</option>
+            <option value="5" selected>Period 5 (12:40 - 13:35)</option>
+            <option value="6">Period 6 (13:35 - 14:30)</option>
+            <option value="7">Period 7 (14:30 - 15:25)</option>
+            <option value="8">Period 8 (15:25 - 16:20)</option>
+            <option value="9">Period 9 (16:20 - 17:15)</option>
+          </select>
+        </div>
+
+        <!-- Quick Jump to Current Time -->
+        <button onclick="jumpToCurrentTime()" class="text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2.5 py-1.5 rounded-lg transition" title="Sync with current system clock">
+          ↺ Now
+        </button>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+
+    <!-- TAB 1: DASHBOARD ("What's Happening Now?") -->
+    <section id="view-dashboard" class="space-y-6 animate-fade-in">
+      
+      <!-- Live Status & Period Hero Card -->
+      <div class="bg-gradient-to-r from-blue-900 to-indigo-900 text-white rounded-2xl p-6 shadow-xl border border-blue-800 relative overflow-hidden">
+        <div class="absolute right-0 top-0 bottom-0 opacity-10 pointer-events-none transform translate-x-8">
+          <svg class="w-96 h-96" viewBox="0 0 200 200" fill="currentColor">
+            <path d="M40 0 L75 14 L75 52 C75 72 40 85 40 85 C40 85 5 72 5 52 L5 14 Z"/>
+          </svg>
+        </div>
+        
+        <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-400 text-slate-950 mb-3 shadow">
+              <span class="w-2 h-2 rounded-full bg-slate-950"></span>
+              Live Scheduled Occupancy
+            </div>
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">What's Happening Now?</h1>
+            <p class="text-sm text-blue-100 mt-1 max-w-2xl">
+              Real-time schedule lookup across <span class="font-bold text-amber-300">83 verified rooms</span> for <span id="heroDayPeriodText" class="font-bold text-white underline decoration-amber-400">Wednesday, Period 5 (12:40 - 13:35)</span>.
+            </p>
+          </div>
+
+          <!-- Countdown / Time remaining pill -->
+          <div class="bg-slate-950/40 backdrop-blur-md rounded-xl p-4 border border-white/10 min-w-[220px]">
+            <div class="text-xs text-blue-200 uppercase font-semibold">Active Slot</div>
+            <div id="heroSlotTime" class="text-xl font-black text-white">12:40 - 13:35</div>
+            <div class="mt-2 w-full bg-slate-700/60 rounded-full h-1.5 overflow-hidden">
+              <div id="periodProgressBar" class="bg-amber-400 h-1.5 rounded-full" style="width: 45%;"></div>
+            </div>
+            <div id="periodRemainingText" class="text-[11px] text-amber-300 font-medium mt-1.5">Scheduled session in progress</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        <!-- Total Verified Rooms -->
+        <div class="bg-white rounded-xl p-5 border border-slate-200 shadow-sm hover:border-blue-300 transition">
+          <div class="flex items-center justify-between text-slate-500 text-xs font-bold uppercase tracking-wider">
+            <span>Verified Rooms</span>
+            <span class="text-lg">🏢</span>
+          </div>
+          <div class="mt-2 text-3xl font-black text-slate-800" id="kpiTotalRooms">83</div>
+          <div class="text-xs text-slate-500 mt-1">4 Blocks + Central Labs</div>
+        </div>
+
+        <!-- Occupied Rooms -->
+        <div class="bg-white rounded-xl p-5 border border-red-200 shadow-sm hover:border-red-300 transition bg-gradient-to-br from-white to-red-50/30">
+          <div class="flex items-center justify-between text-red-600 text-xs font-bold uppercase tracking-wider">
+            <span>Scheduled Occupied</span>
+            <span class="text-lg">🔴</span>
+          </div>
+          <div class="mt-2 text-3xl font-black text-red-600" id="kpiOccupiedRooms">--</div>
+          <div class="text-xs text-slate-500 mt-1" id="kpiOccupiedSub">Classes currently running</div>
+        </div>
+
+        <!-- Vacant Rooms -->
+        <div class="bg-white rounded-xl p-5 border border-emerald-200 shadow-sm hover:border-emerald-300 transition bg-gradient-to-br from-white to-emerald-50/30">
+          <div class="flex items-center justify-between text-emerald-600 text-xs font-bold uppercase tracking-wider">
+            <span>Verified Vacant</span>
+            <span class="text-lg">🟢</span>
+          </div>
+          <div class="mt-2 text-3xl font-black text-emerald-600" id="kpiVacantRooms">--</div>
+          <div class="text-xs text-slate-500 mt-1" id="kpiVacantSub">Available for study &amp; faculty</div>
+        </div>
+
+        <!-- Shared / Combined Sessions -->
+        <div class="bg-white rounded-xl p-5 border border-purple-200 shadow-sm hover:border-purple-300 transition bg-gradient-to-br from-white to-purple-50/30">
+          <div class="flex items-center justify-between text-purple-600 text-xs font-bold uppercase tracking-wider">
+            <span>Multi-Section / Shared</span>
+            <span class="text-lg">👥</span>
+          </div>
+          <div class="mt-2 text-3xl font-black text-purple-600" id="kpiSharedSessions">--</div>
+          <div class="text-xs text-slate-500 mt-1">Electives &amp; combined tracks</div>
+        </div>
+
+      </div>
+
+      <!-- Quick Action Shortcuts -->
+      <div class="flex items-center gap-3 overflow-x-auto pb-1 text-xs">
+        <span class="font-bold text-slate-600 whitespace-nowrap">Quick Explorers:</span>
+        <button onclick="quickFilterFloor('EB', 3)" class="px-3 py-1.5 rounded-full bg-white border border-slate-300 hover:border-blue-600 hover:text-blue-600 font-semibold shadow-sm transition whitespace-nowrap">
+          EB Floor 3 Classrooms →
+        </button>
+        <button onclick="quickFilterFloor('EB', 4)" class="px-3 py-1.5 rounded-full bg-white border border-slate-300 hover:border-blue-600 hover:text-blue-600 font-semibold shadow-sm transition whitespace-nowrap">
+          EB Floor 4 Classrooms →
+        </button>
+        <button onclick="quickFilterFloor('Law Block', 4)" class="px-3 py-1.5 rounded-full bg-white border border-slate-300 hover:border-blue-600 hover:text-blue-600 font-semibold shadow-sm transition whitespace-nowrap">
+          Law Block Floor 4 →
+        </button>
+        <button onclick="quickFilterFloor('SVH', 2)" class="px-3 py-1.5 rounded-full bg-white border border-slate-300 hover:border-blue-600 hover:text-blue-600 font-semibold shadow-sm transition whitespace-nowrap">
+          SVH Lecture Halls →
+        </button>
+        <button onclick="switchTab('vacant')" class="px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-300 text-emerald-700 hover:bg-emerald-100 font-semibold shadow-sm transition whitespace-nowrap">
+          Find Vacant Rooms Now 🟢
+        </button>
+      </div>
+
+      <!-- Live Room Activity Table & Filter -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-4 sm:p-5 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/60">
+          <div>
+            <h2 class="text-base font-bold text-slate-900">Active Scheduled Rooms &amp; Occupancy</h2>
+            <p class="text-xs text-slate-500">Live breakdown of classes running right now or during the selected slot.</p>
+          </div>
+
+          <!-- Filter Controls -->
+          <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+            <input type="text" id="dashboardSearchRoom" placeholder="Filter room or section..." 
+              class="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-600 flex-1 sm:w-44"
+              oninput="renderDashboardTable()">
+            
+            <select id="dashboardBuildingFilter" onchange="renderDashboardTable()" class="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-600">
+              <option value="ALL">All Buildings</option>
+              <option value="EB">Engineering Block (EB)</option>
+              <option value="Foundation Block">Foundation Block</option>
+              <option value="Law Block">Law Block</option>
+              <option value="SVH">SVH</option>
+              <option value="Special">Specialized Labs</option>
+            </select>
+
+            <select id="dashboardStatusFilter" onchange="renderDashboardTable()" class="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-600">
+              <option value="ALL">All Statuses</option>
+              <option value="OCCUPIED">Occupied Only</option>
+              <option value="VACANT">Vacant Only</option>
+              <option value="SHARED">Multi-Section Only</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Table Container -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-100/90 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-[11px] sticky top-0">
+              <tr>
+                <th class="py-3 px-4">Room &amp; Location</th>
+                <th class="py-3 px-3">Status</th>
+                <th class="py-3 px-3">Section(s)</th>
+                <th class="py-3 px-4">Subject &amp; Code</th>
+                <th class="py-3 px-4">Faculty</th>
+                <th class="py-3 px-3">Type</th>
+                <th class="py-3 px-3">Upcoming Class</th>
+                <th class="py-3 px-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody id="dashboardTableBody" class="divide-y divide-slate-100">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+        <div id="dashboardEmptyState" class="hidden p-8 text-center text-slate-400 text-sm">
+          No rooms match your filter criteria. Try clearing the search or changing building filters.
+        </div>
+      </div>
+
+    </section>
+
+
+    <!-- TAB 2: MULTI-ROOM SEARCH (Core Required Feature) -->
+    <section id="view-multiroom" class="space-y-6 hidden animate-fade-in">
+      
+      <!-- Feature Header & Instruction -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800 uppercase tracking-wider">
+              Core Search Tool
+            </div>
+            <h1 class="text-2xl font-black text-slate-900 mt-1">Multi-Room Search</h1>
+            <p class="text-sm text-slate-500 mt-1">
+              Select multiple rooms simultaneously to compare their scheduled classes side-by-side at your selected day and time.
+            </p>
+          </div>
+
+          <!-- Quick Room Selection Shortcuts -->
+          <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-xs font-semibold text-slate-400 mr-1">Quick Select:</span>
+            <button onclick="multiSelectPreset('EB_3')" class="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-md border border-slate-300 transition">
+              EB 3rd Floor (301-305)
+            </button>
+            <button onclick="multiSelectPreset('EB_4')" class="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-md border border-slate-300 transition">
+              EB 4th Floor (402-407)
+            </button>
+            <button onclick="multiSelectPreset('ALL_LABS')" class="px-2.5 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-md border border-slate-300 transition">
+              All Labs
+            </button>
+            <button onclick="multiSelectAll()" class="px-2.5 py-1 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold rounded-md border border-blue-300 transition">
+              Select All (83)
+            </button>
+            <button onclick="multiSelectClear()" class="px-2.5 py-1 text-xs bg-red-50 hover:bg-red-100 text-red-700 font-semibold rounded-md border border-red-300 transition">
+              Clear All
+            </button>
+          </div>
+        </div>
+
+        <!-- Room Selector Control Panel -->
+        <div class="mt-6 pt-5 border-t border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4">
+          
+          <!-- Search & Filter Rooms -->
+          <div class="col-span-1 md:col-span-2">
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Type room numbers or filter:
+            </label>
+            <div class="flex gap-2">
+              <input type="text" id="multiRoomFilterInput" 
+                placeholder="Type to filter rooms (e.g. EB 301, 402, Lab)..." 
+                class="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                oninput="renderMultiRoomCheckboxes()">
+              
+              <select id="multiRoomBuildingFilter" onchange="renderMultiRoomCheckboxes()" 
+                class="bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600">
+                <option value="ALL">All Blocks</option>
+                <option value="EB">Engineering Block (EB)</option>
+                <option value="Foundation Block">Foundation Block</option>
+                <option value="Law Block">Law Block</option>
+                <option value="SVH">SVH</option>
+                <option value="Special">Specialized Labs</option>
+              </select>
+            </div>
+
+            <!-- Scrollable Checkbox Room Selector Grid -->
+            <div class="mt-3 p-3 bg-slate-50/80 rounded-xl border border-slate-200 max-h-48 overflow-y-auto">
+              <div id="multiRoomCheckboxesGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 text-xs">
+                <!-- Dynamically populated checkboxes -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Selection Summary & Filters -->
+          <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-center">
+                <span class="text-xs font-bold uppercase text-slate-600">Selected Rooms</span>
+                <span id="multiRoomSelectedCount" class="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-600 text-white">0</span>
+              </div>
+              <div id="multiRoomChipsContainer" class="mt-2.5 flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                <span class="text-xs text-slate-400 italic">No rooms selected yet. Pick from above.</span>
+              </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-200 mt-3 flex items-center justify-between text-xs">
+              <span class="text-slate-500 font-medium">Filter Results:</span>
+              <select id="multiRoomStatusFilter" onchange="renderMultiRoomResults()" class="bg-white border border-slate-300 rounded px-2 py-1 text-xs font-semibold text-slate-700">
+                <option value="ALL">All Statuses</option>
+                <option value="OCCUPIED">Occupied Only</option>
+                <option value="VACANT">Vacant Only</option>
+              </select>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Multi-Room Search Results -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        
+        <div class="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between flex-wrap gap-3 bg-slate-50/70">
+          <div>
+            <h2 class="text-base font-bold text-slate-900">
+              Selected Rooms Comparison Results
+            </h2>
+            <p class="text-xs text-slate-500" id="multiRoomResultsSub">
+              Showing status for selected rooms on Wednesday, Period 5 (12:40 - 13:35).
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <!-- View Mode Switcher: Table vs Cards -->
+            <div class="inline-flex p-0.5 bg-slate-200 rounded-lg text-xs font-semibold">
+              <button onclick="setMultiRoomView('table')" id="btnViewTable" class="px-2.5 py-1 rounded-md bg-white text-slate-900 shadow-sm transition">
+                Table View
+              </button>
+              <button onclick="setMultiRoomView('cards')" id="btnViewCards" class="px-2.5 py-1 rounded-md text-slate-600 hover:text-slate-900 transition">
+                Cards View
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Multi-Room Table View -->
+        <div id="multiRoomTableView" class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 uppercase tracking-wider text-[11px]">
+              <tr>
+                <th class="py-3 px-4">Room</th>
+                <th class="py-3 px-3">Building &amp; Floor</th>
+                <th class="py-3 px-3">Occupancy Status</th>
+                <th class="py-3 px-4">Scheduled Section(s)</th>
+                <th class="py-3 px-4">Subject Name</th>
+                <th class="py-3 px-3">Course Code</th>
+                <th class="py-3 px-4">Faculty</th>
+                <th class="py-3 px-3">Group / Lab</th>
+                <th class="py-3 px-3">Time Interval</th>
+                <th class="py-3 px-3 text-right">Details</th>
+              </tr>
+            </thead>
+            <tbody id="multiRoomTableBody" class="divide-y divide-slate-100">
+              <!-- Dynamically populated rows -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Multi-Room Cards View -->
+        <div id="multiRoomCardsView" class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 hidden">
+          <!-- Dynamically populated cards -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="multiRoomEmptyState" class="p-12 text-center text-slate-400">
+          <svg class="mx-auto h-12 w-12 text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+          </svg>
+          <div class="text-base font-semibold text-slate-600">No rooms selected</div>
+          <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+            Choose room numbers above or click one of the quick presets (e.g. EB 3rd Floor, EB 4th Floor) to inspect multi-room occupancy.
+          </p>
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- TAB 3: FLOOR EXPLORER (Floor-Wise Room Search) -->
+    <section id="view-floors" class="space-y-6 hidden animate-fade-in">
+      
+      <!-- Floor Explorer Header & Selector Bar -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-800 uppercase tracking-wider">
+              Architectural Navigator
+            </div>
+            <h1 class="text-2xl font-black text-slate-900 mt-1">Floor Explorer</h1>
+            <p class="text-sm text-slate-500 mt-1">
+              Inspect classrooms and labs floor by floor to see which rooms are vacant, occupied, or hosting shared lectures.
+            </p>
+          </div>
+
+          <!-- Building & Floor Controls -->
+          <div class="flex items-center gap-3 flex-wrap">
+            
+            <!-- Building Selector -->
+            <div>
+              <label for="floorBuildingSelect" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Building:</label>
+              <select id="floorBuildingSelect" onchange="onFloorBuildingChange()" class="bg-slate-50 border border-slate-300 font-bold text-sm text-slate-800 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-600">
+                <option value="EB">Engineering Block (EB)</option>
+                <option value="Foundation Block">Foundation Block</option>
+                <option value="Law Block">Law Block</option>
+                <option value="SVH">Sir Vishveshwarya Hall (SVH)</option>
+                <option value="Specialized Labs">Specialized Labs &amp; Centres</option>
+              </select>
+            </div>
+
+            <!-- Floor Selector Pills -->
+            <div>
+              <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Floor:</label>
+              <div id="floorPillsContainer" class="flex gap-1">
+                <!-- Dynamically populated floors -->
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Floor Summary Stats & Controls -->
+        <div class="mt-6 pt-4 border-t border-slate-200 flex items-center justify-between flex-wrap gap-4 text-xs">
+          <div class="flex items-center gap-4">
+            <span class="font-bold text-slate-700" id="floorStatsText">
+              Floor 3: 5 Verified Rooms
+            </span>
+            <div class="flex items-center gap-2">
+              <span id="floorBadgeOccupied" class="badge-occupied px-2 py-0.5 rounded-full font-semibold">3 Occupied</span>
+              <span id="floorBadgeVacant" class="badge-vacant px-2 py-0.5 rounded-full font-semibold">2 Vacant</span>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <!-- Filter by occupancy on floor -->
+            <select id="floorOccupancyFilter" onchange="renderFloorGrid()" class="bg-slate-50 border border-slate-300 rounded px-2.5 py-1 text-xs font-semibold text-slate-700">
+              <option value="ALL">Show All Rooms</option>
+              <option value="OCCUPIED">Occupied Only</option>
+              <option value="VACANT">Vacant Only</option>
+            </select>
+
+            <!-- Select All on this floor button -->
+            <button onclick="selectAllOnCurrentFloor()" class="px-3 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 font-semibold rounded transition">
+              Select All on This Floor
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Floor Rooms Architectural Grid -->
+      <div id="floorRoomsContainer" class="space-y-6">
+        
+        <!-- Occupied Rooms Group -->
+        <div id="floorGroupOccupiedWrapper">
+          <div class="flex items-center gap-2 mb-3">
+            <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Occupied Classrooms &amp; Labs</h3>
+            <span id="floorCountOccupied" class="text-xs px-2 py-0.2 rounded-full font-bold bg-red-100 text-red-700">0</span>
+          </div>
+          <div id="floorGridOccupied" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Vacant Rooms Group -->
+        <div id="floorGroupVacantWrapper">
+          <div class="flex items-center gap-2 mb-3">
+            <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Verified Vacant Rooms</h3>
+            <span id="floorCountVacant" class="text-xs px-2 py-0.2 rounded-full font-bold bg-emerald-100 text-emerald-700">0</span>
+          </div>
+          <div id="floorGridVacant" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Unknown Status Rooms Group -->
+        <div id="floorGroupUnknownWrapper" class="hidden">
+          <div class="flex items-center gap-2 mb-3">
+            <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider">Rooms With Unknown Status</h3>
+            <span id="floorCountUnknown" class="text-xs px-2 py-0.2 rounded-full font-bold bg-slate-200 text-slate-700">0</span>
+          </div>
+          <div id="floorGridUnknown" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- TAB 4: VACANT ROOMS CHECKER -->
+    <section id="view-vacant" class="space-y-6 hidden animate-fade-in">
+      
+      <!-- Vacant Finder Controls -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 uppercase tracking-wider">
+              Free Classroom Finder
+            </div>
+            <h1 class="text-2xl font-black text-slate-900 mt-1">Vacant Rooms Checker</h1>
+            <p class="text-sm text-slate-500 mt-1">
+              Find guaranteed vacant classrooms and labs with zero scheduled classes during your selected time slot or across consecutive periods.
+            </p>
+          </div>
+
+          <!-- Consecutive Periods Filter -->
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center gap-3">
+            <div>
+              <label for="vacantConsecutiveSelect" class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                Vacancy Duration:
+              </label>
+              <select id="vacantConsecutiveSelect" onchange="renderVacantRooms()" class="bg-white border border-slate-300 font-semibold text-xs text-slate-800 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-emerald-500">
+                <option value="1">1 Period Only (55 mins)</option>
+                <option value="2">2 Consecutive Periods (~2 hrs)</option>
+                <option value="3">3 Consecutive Periods (~3 hrs)</option>
+                <option value="REST_OF_DAY">Vacant for Remainder of Day</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="mt-5 pt-4 border-t border-slate-200 flex items-center justify-between flex-wrap gap-4 text-xs">
+          <div class="flex items-center gap-3 flex-wrap">
+            <span class="font-bold text-slate-500">Filter By Building:</span>
+            <select id="vacantBuildingFilter" onchange="renderVacantRooms()" class="bg-slate-50 border border-slate-300 font-medium text-slate-700 rounded px-2.5 py-1.5">
+              <option value="ALL">All Campus Buildings</option>
+              <option value="EB">Engineering Block (EB)</option>
+              <option value="Foundation Block">Foundation Block</option>
+              <option value="Law Block">Law Block</option>
+              <option value="SVH">SVH</option>
+              <option value="Specialized Labs">Specialized Labs</option>
+            </select>
+
+            <select id="vacantTypeFilter" onchange="renderVacantRooms()" class="bg-slate-50 border border-slate-300 font-medium text-slate-700 rounded px-2.5 py-1.5">
+              <option value="ALL">All Room Types (Classrooms + Labs)</option>
+              <option value="Classroom">Classrooms Only</option>
+              <option value="Lab">Labs Only</option>
+            </select>
+          </div>
+
+          <!-- Vacancy Rules Modal Trigger -->
+          <div class="text-[11px] text-slate-400 italic">
+            Strict Vacancy Rule: Verified in room inventory &amp; 0 scheduled classes.
+          </div>
+        </div>
+      </div>
+
+      <!-- Vacant Results Grid & Grouping -->
+      <div class="space-y-4">
+        
+        <div class="flex items-center justify-between">
+          <h2 class="text-base font-bold text-slate-800">
+            Available Rooms Found: <span id="vacantCountBadge" class="text-emerald-600 font-black">0</span>
+          </h2>
+          <div class="text-xs text-slate-500">
+            Click on any room to see when its next class begins.
+          </div>
+        </div>
+
+        <div id="vacantCardsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <!-- Dynamically populated -->
+        </div>
+
+        <div id="vacantEmptyState" class="hidden bg-white p-12 text-center rounded-2xl border border-slate-200 text-slate-400">
+          <div class="text-4xl mb-2">🏫</div>
+          <div class="text-base font-bold text-slate-700">No rooms are vacant for this duration</div>
+          <p class="text-xs text-slate-400 mt-1">
+            All rooms on this floor/building have scheduled classes. Try switching periods or lowering the consecutive period requirement.
+          </p>
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- TAB 5: SECTION LOOKUP & ROOM FINDER -->
+    <section id="view-sections" class="space-y-6 hidden animate-fade-in">
+      
+      <!-- Section Lookup Hero Card -->
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800 uppercase tracking-wider">
+              Section Schedule &amp; Room Finder
+            </div>
+            <h1 class="text-2xl font-black text-slate-900 mt-1">Section-to-Room Lookup</h1>
+            <p class="text-sm text-slate-500 mt-1">
+              Search any of the 127 class sections to view their complete weekly timetable, or find which sections use a specific room.
+            </p>
+          </div>
+
+          <!-- Section Search Input -->
+          <div class="flex items-center gap-3">
+            <div class="relative w-72">
+              <label for="sectionSelectDropdown" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Select Section:</label>
+              <select id="sectionSelectDropdown" onchange="onSectionSelectChange()" class="w-full bg-slate-50 border border-slate-300 font-bold text-sm text-blue-900 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-600">
+                <!-- Dynamically populated sections -->
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section Details Bar -->
+        <div id="sectionMetaBar" class="mt-5 pt-4 border-t border-slate-200 flex items-center justify-between flex-wrap gap-4 text-xs">
+          <div class="flex items-center gap-2">
+            <span class="text-slate-500">Selected:</span>
+            <span id="selectedSectionTitle" class="text-sm font-black text-blue-900">2CSE10</span>
+            <span id="selectedSectionSessionsCount" class="bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-semibold">-- classes / week</span>
+          </div>
+          
+          <div class="flex items-center gap-2">
+            <!-- Reverse Lookup Switcher -->
+            <button onclick="toggleReverseLookupMode(false)" id="btnModeSectionTT" class="px-3 py-1 font-semibold rounded bg-blue-600 text-white shadow-sm transition">
+              Weekly Timetable
+            </button>
+            <button onclick="toggleReverseLookupMode(true)" id="btnModeReverseLookup" class="px-3 py-1 font-semibold rounded bg-slate-100 text-slate-700 hover:bg-slate-200 transition">
+              Find Section by Room 🔄
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION WEEKLY TIMETABLE VIEW -->
+      <div id="sectionWeeklyTimetableView" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center flex-wrap gap-2">
+          <div class="font-bold text-slate-800 text-sm flex items-center gap-2">
+            <span>📅 Complete Weekly Schedule for</span>
+            <span id="ttSectionNameHeader" class="text-blue-700 font-black">2CSE10</span>
+          </div>
+          <div class="text-xs text-slate-500">
+            Scroll horizontally to view all periods (1 to 9). Click any slot to view room details.
+          </div>
+        </div>
+
+        <!-- Horizontally Scrollable Timetable Grid -->
+        <div class="overflow-x-auto">
+          <table class="w-full border-collapse text-xs">
+            <thead class="bg-slate-100/90 text-slate-700 font-bold text-[11px] border-b border-slate-300">
+              <tr id="sectionTTHeaderRow">
+                <th class="py-3 px-3 text-left w-24 sticky left-0 bg-slate-200 z-10">Day</th>
+                <!-- Periods 1..9 -->
+              </tr>
+            </thead>
+            <tbody id="sectionTTBody" class="divide-y divide-slate-200">
+              <!-- Dynamically populated weekly grid -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- REVERSE LOOKUP TOOL: FIND SECTION BY ROOM -->
+      <div id="reverseLookupView" class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 hidden space-y-6">
+        <div class="border-b border-slate-200 pb-4">
+          <h2 class="text-base font-bold text-slate-900">Find Section by Room</h2>
+          <p class="text-xs text-slate-500 mt-1">
+            "Which section is using room EB 402 on Wednesday during Period 5?" — Instantly look up any room's scheduled sections and faculty.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label for="reverseRoomSelect" class="block text-xs font-bold text-slate-600 uppercase mb-1">Select Room:</label>
+            <select id="reverseRoomSelect" onchange="runReverseRoomLookup()" class="w-full bg-slate-50 border border-slate-300 font-bold text-slate-800 rounded-lg p-2 text-sm">
+              <!-- All 83 rooms -->
+            </select>
+          </div>
+          <div>
+            <label for="reverseDaySelect" class="block text-xs font-bold text-slate-600 uppercase mb-1">Select Day:</label>
+            <select id="reverseDaySelect" onchange="runReverseRoomLookup()" class="w-full bg-slate-50 border border-slate-300 font-semibold text-slate-800 rounded-lg p-2 text-sm">
+              <option value="Monday">Monday</option>
+              <option value="Tuesday">Tuesday</option>
+              <option value="Wednesday" selected>Wednesday</option>
+              <option value="Thursday">Thursday</option>
+              <option value="Friday">Friday</option>
+              <option value="Saturday">Saturday</option>
+            </select>
+          </div>
+          <div>
+            <label for="reversePeriodSelect" class="block text-xs font-bold text-slate-600 uppercase mb-1">Select Period:</label>
+            <select id="reversePeriodSelect" onchange="runReverseRoomLookup()" class="w-full bg-slate-50 border border-slate-300 font-semibold text-slate-800 rounded-lg p-2 text-sm">
+              <option value="1">Period 1 (09:00 - 09:55)</option>
+              <option value="2">Period 2 (09:55 - 10:50)</option>
+              <option value="3">Period 3 (10:50 - 11:45)</option>
+              <option value="4">Period 4 (11:45 - 12:40)</option>
+              <option value="5" selected>Period 5 (12:40 - 13:35)</option>
+              <option value="6">Period 6 (13:35 - 14:30)</option>
+              <option value="7">Period 7 (14:30 - 15:25)</option>
+              <option value="8">Period 8 (15:25 - 16:20)</option>
+              <option value="9">Period 9 (16:20 - 17:15)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Reverse Result Output -->
+        <div id="reverseLookupResultCard" class="bg-slate-50 p-5 rounded-xl border border-slate-200">
+          <!-- Dynamic output -->
+        </div>
+      </div>
+
+    </section>
+
+
+    <!-- TAB 6: MASTER TIMETABLE -->
+    <section id="view-timetable" class="space-y-6 hidden animate-fade-in">
+      <div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 class="text-2xl font-black text-slate-900">Master Timetable Viewer</h1>
+            <p class="text-sm text-slate-500 mt-1">
+              Browse weekly schedules by Room, Class Section, or Faculty Member.
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="window.print()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg border border-slate-300 transition flex items-center gap-1.5">
+              <span>🖨️</span> Print Timetable
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-slate-200">
+          <div>
+            <label class="block text-xs font-bold text-slate-600 mb-1">View Schedule For:</label>
+            <div class="inline-flex w-full p-0.5 bg-slate-100 rounded-lg text-xs font-semibold">
+              <button onclick="setMasterViewMode('room')" id="btnMasterModeRoom" class="flex-1 py-1.5 rounded-md bg-white text-blue-900 shadow-sm transition">By Room</button>
+              <button onclick="setMasterViewMode('section')" id="btnMasterModeSection" class="flex-1 py-1.5 rounded-md text-slate-600 transition">By Section</button>
+              <button onclick="setMasterViewMode('faculty')" id="btnMasterModeFaculty" class="flex-1 py-1.5 rounded-md text-slate-600 transition">By Faculty</button>
+            </div>
+          </div>
+
+          <div class="sm:col-span-2">
+            <label id="masterSelectLabel" class="block text-xs font-bold text-slate-600 mb-1">Select Room:</label>
+            <select id="masterTargetSelect" onchange="renderMasterTimetable()" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm font-semibold text-slate-800">
+              <!-- Dynamically populated options -->
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Master Grid Container -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+          <h2 id="masterTableHeading" class="text-sm font-bold text-slate-800">Room EB 301 Schedule</h2>
+          <span class="text-xs text-slate-500">Monday - Saturday (Periods 1 to 9)</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs border-collapse">
+            <thead class="bg-slate-100 font-bold border-b border-slate-300">
+              <tr id="masterHeaderRow">
+                <th class="py-2.5 px-3 text-left w-24 sticky left-0 bg-slate-200 z-10">Day</th>
+              </tr>
+            </thead>
+            <tbody id="masterTableBody" class="divide-y divide-slate-200">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- TAB 7: ABOUT & DATA REPORT -->
+    <section id="view-about" class="space-y-6 hidden animate-fade-in">
+      <div class="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200">
+        
+        <div class="border-b border-slate-200 pb-5">
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-800">Data Engineering Report</span>
+            <span class="text-xs text-slate-400">• Source Verification</span>
+          </div>
+          <h1 class="text-2xl sm:text-3xl font-black text-slate-900 mt-2">IILM Smart Room Finder System</h1>
+          <p class="text-sm text-slate-600 mt-1 max-w-3xl">
+            This application is built for <strong>IILM University, Greater Noida — School of Computer Science &amp; Engineering</strong>. It normalizes and processes the 2026–2027 odd semester master timetable without losing original information or introducing hallucinated room inventory.
+          </p>
+        </div>
+
+        <!-- Data Validation Statistics Grid -->
+        <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div class="text-xs text-slate-500 uppercase font-bold">Class Sections</div>
+            <div class="text-2xl font-black text-blue-900 mt-1">127</div>
+            <div class="text-[11px] text-emerald-600 font-semibold mt-0.5">100% Extracted</div>
+          </div>
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div class="text-xs text-slate-500 uppercase font-bold">Total Classes</div>
+            <div class="text-2xl font-black text-blue-900 mt-1">4,838</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">Weekly sessions</div>
+          </div>
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div class="text-xs text-slate-500 uppercase font-bold">Distinct Rooms</div>
+            <div class="text-2xl font-black text-blue-900 mt-1">83</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">Verified physical rooms</div>
+          </div>
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div class="text-xs text-slate-500 uppercase font-bold">Faculty Members</div>
+            <div class="text-2xl font-black text-blue-900 mt-1">211</div>
+            <div class="text-[11px] text-slate-500 mt-0.5">Distinct instructors</div>
+          </div>
+        </div>
+
+        <!-- Architectural Mapping Details -->
+        <div class="mt-8 space-y-6">
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Building &amp; Floor Classification Rules</h3>
+            <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <span class="font-bold text-blue-900">Engineering Block (EB):</span>
+                <p class="text-slate-600 mt-1">
+                  Classrooms 201–207 (Floor 2), 301–305 (Floor 3), 402–407 (Floor 4); Computing Labs: LAB EB 102, 103, 105 (Floor 1); Digital Electronics Labs (DE-2, DE-3).
+                </p>
+              </div>
+              <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <span class="font-bold text-blue-900">Foundation Block:</span>
+                <p class="text-slate-600 mt-1">
+                  Classrooms 101–107 (Floor 1), 201–207 (Floor 2), 301–307 (Floor 3), 401–406 (Floor 4); Physics Lab I &amp; II.
+                </p>
+              </div>
+              <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <span class="font-bold text-blue-900">Law Block:</span>
+                <p class="text-slate-600 mt-1">
+                  Computer Science lecture halls 301–308 (Floor 3), 401–408 (Floor 4); Computer Labs: LAB Law Block 103, 104, 105 (Floor 1), 304 (Floor 3).
+                </p>
+              </div>
+              <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                <span class="font-bold text-blue-900">Sir Vishveshwarya Hall (SVH):</span>
+                <p class="text-slate-600 mt-1">
+                  Major lecture theatres 201–213 (Floor 2), 301–302 (Floor 3); Computing labs: LAB SVH 102, 103, 111, 112 (Floor 1), 210, 213 (Floor 2).
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Compliance with Rules & Limitations -->
+          <div class="p-4 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-950 space-y-2">
+            <h4 class="font-bold flex items-center gap-1.5 text-amber-900">
+              <span>⚠️</span> Important Methodology &amp; Known Limitations
+            </h4>
+            <ul class="list-disc pl-5 space-y-1 text-slate-700">
+              <li><strong>Scheduled Occupancy vs Physical Sensors:</strong> This application calculates occupancy purely from official timetable schedules. Ad-hoc physical meetings, sudden room cancellations, or emergency room swaps may not be reflected.</li>
+              <li><strong>Vacancy Verification Criteria:</strong> A room is only marked <span class="text-emerald-700 font-bold">Vacant</span> if it exists in the verified inventory of 83 rooms and has zero overlapping scheduled sessions. Unlisted rooms are categorized as <span class="text-slate-600 font-bold">Unknown</span>.</li>
+              <li><strong>Multi-Section &amp; Elective Cohorts:</strong> When multiple class sections attend shared lectures (e.g. PALB tracks or elective courses), all sections are displayed, flagged with a combined session tag.</li>
+              <li><strong>PhD Sessions:</strong> PhD Sem II entries have unspecified room numbers in the master source; these are flagged as needs-review rather than guessing a location.</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Room Details Drawer / Modal -->
+  <div id="roomModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-fade-in border border-slate-200">
+      
+      <div class="p-5 bg-gradient-to-r from-blue-900 to-indigo-900 text-white flex justify-between items-start">
+        <div>
+          <div class="flex items-center gap-2">
+            <span id="modalRoomTitle" class="text-xl font-black">Room EB 301</span>
+            <span id="modalRoomTypeBadge" class="text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-semibold">Classroom</span>
+          </div>
+          <p id="modalRoomLocation" class="text-xs text-blue-200 mt-1">Engineering Block (EB) • Floor 3</p>
+        </div>
+        <button onclick="closeRoomModal()" class="text-slate-300 hover:text-white p-1 rounded-lg">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+        <!-- Current Slot Status Banner -->
+        <div id="modalSlotStatusBanner" class="p-3 rounded-xl border flex items-center justify-between">
+          <!-- Dynamically populated -->
+        </div>
+
+        <!-- Weekly Schedule for This Room -->
+        <div>
+          <h4 class="font-bold text-slate-800 text-sm mb-2">Weekly Schedule in this Room</h4>
+          <div id="modalWeeklyScheduleList" class="space-y-2">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
+        <button onclick="closeRoomModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded-lg text-xs transition">
+          Close
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-6 px-4 sm:px-6 lg:px-8 mt-12 text-center text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <img src="assets/logo.svg" alt="IILM Logo" class="h-6 w-auto opacity-70">
+        <span>© 2026–2027 IILM University Greater Noida • School of Computer Science &amp; Engineering</span>
+      </div>
+      <div class="flex items-center gap-4 text-slate-400">
+        <a href="#about" onclick="switchTab('about'); return false;" class="hover:text-blue-600 transition">Data Status</a>
+        <span>•</span>
+        <span>Built with HTML5, Tailwind CSS, ES6+ Vanilla JS</span>
+        <span>•</span>
+        <a href="timetable-source.html" target="_blank" class="hover:text-blue-600 transition">View Source HTML</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <!-- 1. Offline data fallback script (window.MASTER_TIMETABLE_DATA) -->
+  <script src="timetable-data.js"></script>
+  <!-- 2. Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
