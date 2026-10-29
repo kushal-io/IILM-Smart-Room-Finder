@@ -83,6 +83,166 @@ function renderCategoryBadge(groupLabel) {
   return `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">${escapeHtml(groupLabel)}</span>`;
 }
 
+// Standard Time Table Metadata
+const PERIOD_TIMINGS = {
+  1: { start: '09:00', end: '09:55', label: 'Period 1 (09:00 - 09:55)' },
+  2: { start: '09:55', end: '10:50', label: 'Period 2 (09:55 - 10:50)' },
+  3: { start: '10:50', end: '11:45', label: 'Period 3 (10:50 - 11:45)' },
+  4: { start: '11:45', end: '12:40', label: 'Period 4 (11:45 - 12:40)' },
+  5: { start: '12:40', end: '13:35', label: 'Period 5 (12:40 - 13:35)' },
+  6: { start: '13:35', end: '14:30', label: 'Period 6 (13:35 - 14:30)' },
+  7: { start: '14:30', end: '15:25', label: 'Period 7 (14:30 - 15:25)' },
+  8: { start: '15:25', end: '16:20', label: 'Period 8 (15:25 - 16:20)' },
+  9: { start: '16:20', end: '17:15', label: 'Period 9 (16:20 - 17:15)' }
+};
+
+const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/**
+ * Retrieves the current date and time components in the Asia/Kolkata timezone.
+ */
+function getKolkataTimeInfo() {
+  const now = new Date();
+
+  // Extract date and time parts in Asia/Kolkata timezone
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'long',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false
+  });
+
+  const parts = dtf.formatToParts(now);
+  let weekday = 'Monday';
+  let hour = 0;
+  let minute = 0;
+  let second = 0;
+
+  for (const part of parts) {
+    if (part.type === 'weekday') weekday = part.value;
+    if (part.type === 'hour') {
+      const parsed = parseInt(part.value, 10);
+      hour = parsed === 24 ? 0 : parsed;
+    }
+    if (part.type === 'minute') minute = parseInt(part.value, 10);
+    if (part.type === 'second') second = parseInt(part.value, 10);
+  }
+
+  // 12-hour formatted time with AM/PM for UI header display
+  const dtf12 = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+  const timeStr = dtf12.format(now);
+
+  const totalMinutes = hour * 60 + minute;
+  return {
+    weekday,
+    hour,
+    minute,
+    second,
+    totalMinutes,
+    timeStr
+  };
+}
+
+/**
+ * Determines the current period and class status based on Asia/Kolkata time.
+ * Period rules:
+ * - Before first period (< 09:00): Period 1
+ * - Scheduled class hours (09:00 - 17:15): Period 1 through 9
+ * - After final period until midnight (>= 17:15): Period 9
+ * - At midnight (00:00): Automatically rolls into new calendar day, resetting to Period 1
+ * - Saturday / Sunday: Uses actual weekday without falsely reporting classes in progress
+ */
+function determineCurrentPeriod(kolkataInfo) {
+  const info = kolkataInfo || getKolkataTimeInfo();
+  const totalMins = info.totalMinutes;
+  const isSunday = info.weekday === 'Sunday';
+
+  const periodRanges = [
+    { p: 1, start: 540, end: 595, sStr: '09:00', eStr: '09:55' },
+    { p: 2, start: 595, end: 650, sStr: '09:55', eStr: '10:50' },
+    { p: 3, start: 650, end: 705, sStr: '10:50', eStr: '11:45' },
+    { p: 4, start: 705, end: 760, sStr: '11:45', eStr: '12:40' },
+    { p: 5, start: 760, end: 815, sStr: '12:40', eStr: '13:35' },
+    { p: 6, start: 815, end: 870, sStr: '13:35', eStr: '14:30' },
+    { p: 7, start: 870, end: 925, sStr: '14:30', eStr: '15:25' },
+    { p: 8, start: 925, end: 980, sStr: '15:25', eStr: '16:20' },
+    { p: 9, start: 980, end: 1035, sStr: '16:20', eStr: '17:15' }
+  ];
+
+  // Before first period (< 09:00 AM)
+  if (totalMins < 540) {
+    return {
+      isClassHour: false,
+      period: 1,
+      start: '09:00',
+      end: '09:55',
+      minsRemaining: 540 - totalMins,
+      fraction: 0,
+      statusText: isSunday ? 'Sunday • No scheduled classes' : 'Classes begin at 09:00 AM (Period 1 selected)'
+    };
+  }
+
+  // After final period until midnight (>= 17:15)
+  if (totalMins >= 1035) {
+    return {
+      isClassHour: false,
+      period: 9,
+      start: '16:20',
+      end: '17:15',
+      minsRemaining: 0,
+      fraction: 1,
+      statusText: isSunday ? 'Sunday • No scheduled classes' : 'Academic day concluded (Period 9 selected)'
+    };
+  }
+
+  // During scheduled period hours (540 <= totalMins < 1035)
+  for (const r of periodRanges) {
+    if (totalMins >= r.start && totalMins < r.end) {
+      if (isSunday) {
+        return {
+          isClassHour: false,
+          period: r.p,
+          start: r.sStr,
+          end: r.eStr,
+          minsRemaining: r.end - totalMins,
+          fraction: (totalMins - r.start) / (r.end - r.start),
+          statusText: 'Sunday • No scheduled classes'
+        };
+      }
+      return {
+        isClassHour: true,
+        period: r.p,
+        start: r.sStr,
+        end: r.eStr,
+        minsRemaining: r.end - totalMins,
+        fraction: (totalMins - r.start) / (r.end - r.start),
+        statusText: `Period ${r.p} in progress`
+      };
+    }
+  }
+
+  return {
+    isClassHour: false,
+    period: 1,
+    start: '09:00',
+    end: '09:55',
+    minsRemaining: 0,
+    fraction: 0,
+    statusText: isSunday ? 'Sunday • No scheduled classes' : 'Between scheduled periods'
+  };
+}
+
+const initialKolkata = getKolkataTimeInfo();
+const initialPeriodInfo = determineCurrentPeriod(initialKolkata);
+
 // Application State
 const state = {
   data: null,
@@ -99,11 +259,11 @@ const state = {
   scheduleByTeacher: {},     // [teacher][day][period] -> [session1]
   roomsByBuildingFloor: {},  // [bldg][floor] -> [room1, room2]
 
-  // Active UI Context
+  // Active UI Context (Live Now by default, auto-selected Asia/Kolkata day & period)
   activeTab: 'dashboard',
-  isLiveMode: false,
-  selectedDay: 'Wednesday',
-  selectedPeriod: 5,
+  isLiveMode: true,
+  selectedDay: initialKolkata.weekday,
+  selectedPeriod: initialPeriodInfo.period,
   
   // Multi-Room Search State
   selectedRooms: ['EB 301', 'EB 302', 'EB 303', 'EB 304', 'EB 402', 'EB 403'],
@@ -123,21 +283,6 @@ const state = {
   masterMode: 'room', // 'room', 'section', 'faculty'
   masterTarget: 'EB 301'
 };
-
-// Standard Time Table Metadata
-const PERIOD_TIMINGS = {
-  1: { start: '09:00', end: '09:55', label: 'Period 1 (09:00 - 09:55)' },
-  2: { start: '09:55', end: '10:50', label: 'Period 2 (09:55 - 10:50)' },
-  3: { start: '10:50', end: '11:45', label: 'Period 3 (10:50 - 11:45)' },
-  4: { start: '11:45', end: '12:40', label: 'Period 4 (11:45 - 12:40)' },
-  5: { start: '12:40', end: '13:35', label: 'Period 5 (12:40 - 13:35)' },
-  6: { start: '13:35', end: '14:30', label: 'Period 6 (13:35 - 14:30)' },
-  7: { start: '14:30', end: '15:25', label: 'Period 7 (14:30 - 15:25)' },
-  8: { start: '15:25', end: '16:20', label: 'Period 8 (15:25 - 16:20)' },
-  9: { start: '16:20', end: '17:15', label: 'Period 9 (16:20 - 17:15)' }
-};
-
-const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // ========================================================
 // 1. DATA INITIALIZATION & INDEX BUILDING
@@ -441,7 +586,7 @@ function getBuildingShortKey(bldg) {
 }
 
 // ========================================================
-// 2. TIME CONTROLLER & LIVE TICKER
+// 2. TIME CONTROLLER & LIVE TICKER (Asia/Kolkata IST)
 // ========================================================
 
 function initClockTicker() {
@@ -450,18 +595,15 @@ function initClockTicker() {
 }
 
 function updateLiveClock() {
-  const now = new Date();
+  const kInfo = getKolkataTimeInfo();
   
-  // Format current time
-  const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  const dayName = now.toLocaleDateString([], { weekday: 'long' });
-  
+  // Format current live time in IST
   const clockEl = document.getElementById('liveClockText');
   if (clockEl) {
-    clockEl.textContent = `${dayName}, ${timeStr}`;
+    clockEl.textContent = `${kInfo.weekday}, ${kInfo.timeStr} (IST)`;
   }
 
-  const currentPeriodInfo = determineCurrentPeriod(now);
+  const currentPeriodInfo = determineCurrentPeriod(kInfo);
   const badgeEl = document.getElementById('currentPeriodBadge');
   if (badgeEl) {
     if (currentPeriodInfo.isClassHour) {
@@ -471,14 +613,10 @@ function updateLiveClock() {
     }
   }
 
-  // If in Live Mode, auto-update selected day and period
+  // If in Live Mode, auto-update selected day and period when period or day boundary is crossed
   if (state.isLiveMode) {
-    let dayToUse = dayName;
-    if (!DAYS_OF_WEEK.includes(dayToUse)) {
-      dayToUse = 'Monday'; // Default to Monday if Sunday
-    }
-
-    let periodToUse = currentPeriodInfo.period || 1;
+    const dayToUse = kInfo.weekday;
+    const periodToUse = currentPeriodInfo.period;
 
     if (state.selectedDay !== dayToUse || state.selectedPeriod !== periodToUse) {
       state.selectedDay = dayToUse;
@@ -488,52 +626,11 @@ function updateLiveClock() {
     }
     
     // Update progress bar
-    updatePeriodProgress(now, currentPeriodInfo);
+    updatePeriodProgress(kInfo, currentPeriodInfo);
   }
 }
 
-function determineCurrentPeriod(dateObj) {
-  const hours = dateObj.getHours();
-  const minutes = dateObj.getMinutes();
-  const totalMins = hours * 60 + minutes;
-
-  // Periods: 1 (09:00 - 09:55) -> 540 to 595
-  const periodRanges = [
-    { p: 1, start: 540, end: 595, sStr: '09:00', eStr: '09:55' },
-    { p: 2, start: 595, end: 650, sStr: '09:55', eStr: '10:50' },
-    { p: 3, start: 650, end: 705, sStr: '10:50', eStr: '11:45' },
-    { p: 4, start: 705, end: 760, sStr: '11:45', eStr: '12:40' },
-    { p: 5, start: 760, end: 815, sStr: '12:40', eStr: '13:35' },
-    { p: 6, start: 815, end: 870, sStr: '13:35', eStr: '14:30' },
-    { p: 7, start: 870, end: 925, sStr: '14:30', eStr: '15:25' },
-    { p: 8, start: 925, end: 980, sStr: '15:25', eStr: '16:20' },
-    { p: 9, start: 980, end: 1035, sStr: '16:20', eStr: '17:15' }
-  ];
-
-  if (totalMins < 540) {
-    return { isClassHour: false, period: 1, start: '09:00', end: '09:55', statusText: 'Classes begin at 09:00 AM' };
-  }
-  if (totalMins >= 1035) {
-    return { isClassHour: false, period: null, statusText: 'Academic day concluded (After 17:15)' };
-  }
-
-  for (const r of periodRanges) {
-    if (totalMins >= r.start && totalMins < r.end) {
-      return {
-        isClassHour: true,
-        period: r.p,
-        start: r.sStr,
-        end: r.eStr,
-        minsRemaining: r.end - totalMins,
-        fraction: (totalMins - r.start) / (r.end - r.start)
-      };
-    }
-  }
-
-  return { isClassHour: false, period: 1, statusText: 'Between scheduled periods' };
-}
-
-function updatePeriodProgress(now, info) {
+function updatePeriodProgress(kInfo, info) {
   const bar = document.getElementById('periodProgressBar');
   const txt = document.getElementById('periodRemainingText');
   const heroTime = document.getElementById('heroSlotTime');
@@ -545,6 +642,7 @@ function updatePeriodProgress(now, info) {
   } else {
     if (bar) bar.style.width = '0%';
     if (txt) txt.textContent = info.statusText;
+    if (heroTime && info.start && info.end) heroTime.textContent = `${info.start} - ${info.end}`;
   }
 }
 
@@ -554,22 +652,20 @@ function setLiveMode(isLive) {
   const manualBtn = document.getElementById('modeManualBtn');
 
   if (isLive) {
-    liveBtn.className = 'px-2.5 py-1 rounded-md font-semibold bg-white text-blue-900 shadow-sm transition';
-    manualBtn.className = 'px-2.5 py-1 rounded-md font-semibold text-slate-600 hover:text-slate-900 transition';
+    if (liveBtn) liveBtn.className = 'px-2.5 py-1 rounded-md font-semibold bg-white text-blue-900 shadow-sm transition';
+    if (manualBtn) manualBtn.className = 'px-2.5 py-1 rounded-md font-semibold text-slate-600 hover:text-slate-900 transition';
     jumpToCurrentTime();
   } else {
-    liveBtn.className = 'px-2.5 py-1 rounded-md font-semibold text-slate-600 hover:text-slate-900 transition';
-    manualBtn.className = 'px-2.5 py-1 rounded-md font-semibold bg-white text-blue-900 shadow-sm transition';
+    if (liveBtn) liveBtn.className = 'px-2.5 py-1 rounded-md font-semibold text-slate-600 hover:text-slate-900 transition';
+    if (manualBtn) manualBtn.className = 'px-2.5 py-1 rounded-md font-semibold bg-white text-blue-900 shadow-sm transition';
   }
 }
 
 function jumpToCurrentTime() {
-  const now = new Date();
-  const dayName = now.toLocaleDateString([], { weekday: 'long' });
-  state.selectedDay = DAYS_OF_WEEK.includes(dayName) ? dayName : 'Wednesday';
-  
-  const curPeriod = determineCurrentPeriod(now);
-  state.selectedPeriod = curPeriod.period || 5;
+  const kInfo = getKolkataTimeInfo();
+  const curPeriod = determineCurrentPeriod(kInfo);
+  state.selectedDay = kInfo.weekday;
+  state.selectedPeriod = curPeriod.period;
 
   updateSharedControls();
   renderAllViews();
@@ -577,7 +673,10 @@ function jumpToCurrentTime() {
 
 function onSharedTimeChange() {
   state.isLiveMode = false;
-  setLiveMode(false);
+  const liveBtn = document.getElementById('modeLiveBtn');
+  const manualBtn = document.getElementById('modeManualBtn');
+  if (liveBtn) liveBtn.className = 'px-2.5 py-1 rounded-md font-semibold text-slate-600 hover:text-slate-900 transition';
+  if (manualBtn) manualBtn.className = 'px-2.5 py-1 rounded-md font-semibold bg-white text-blue-900 shadow-sm transition';
 
   const daySelect = document.getElementById('sharedDaySelect');
   const periodSelect = document.getElementById('sharedPeriodSelect');
@@ -595,6 +694,11 @@ function updateSharedControls() {
 
   if (daySelect) daySelect.value = state.selectedDay;
   if (periodSelect) periodSelect.value = state.selectedPeriod;
+
+  const revDay = document.getElementById('reverseDaySelect');
+  const revPeriod = document.getElementById('reversePeriodSelect');
+  if (revDay && state.isLiveMode) revDay.value = state.selectedDay;
+  if (revPeriod && state.isLiveMode) revPeriod.value = state.selectedPeriod;
 
   const heroDayPeriodText = document.getElementById('heroDayPeriodText');
   const pInfo = PERIOD_TIMINGS[state.selectedPeriod];
